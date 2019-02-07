@@ -6,7 +6,7 @@ output: html_notebook
 The SF Assessor's office data can be downloaded here:
 https://data.sfgov.org/resource/fk72-cxc3.csv
 
-However, it needs some cleaning in order to be used for analysis. 
+However, it needs some cleaning in order to be used for analysis. Unfortunately, I cannot push this files to github because it is larger than 100 MB, but in my local repository it is in the data subfolder. 
 
 First we'll load the tidyverse library and read in the data. 
 ```{r, cache=TRUE}
@@ -103,7 +103,7 @@ dat_sub = dat_sub %>%
   select(`Closed Roll Year`, `Property Location`, `Parcel Number`, `Use Definition`, `Property Class Code Definition`, `Property Area`, `Lot Area`, `Analysis Neighborhood`, `Row ID`, `Total Taxable Assessment`, `Earliest Year`, `Absolute Difference Previous Year`, `Percent Difference Previous Year`, `Slope Total Assessment`, `Slope Percent Difference`, `lat`, `long`)
 ```
 
-Save the data as \*.csv and as \*.rds files.
+Save the data as \*.csv and as \*.rds files. Unfortunately, I cannot push these files to github because they are larger than 100 MB. I have saved them to my local data subfolder.
 ```{r}
 write_delim(dat_sub, path = "./data/dat_sub.csv", delim = ",")
 write_rds(dat_sub, path = "./data/dat_sub.rds")
