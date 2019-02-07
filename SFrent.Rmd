@@ -1,0 +1,63 @@
+---
+title: "SF rent data exploration"
+output: html_notebook
+---
+
+### Brainstorming questions, data, and methods
+
+Motivating questions I've been thinking about:
+
+####1. Who is rent control benefiting? 
+  - What are the incomes of people who are in rent control?
+  - What are the rents of rent control units?
+  - Are people in rent control using other city programs?
+  - Can I find out if some people who have rent control, own homes elsewhere?
+  - Are rent controlled homes more "derelict?"
+  - Do rent controlled units rent for a premium?
+  - What about people without rent control. Are they more likely to have roomates?
+  - Or be wealthier?
+  - Or move more often?
+  - Does rent control change or correlate with certain behaviors?
+
+####2. Of people who own homes:
+  - How long have they been there?
+  - What taxes are people paying?
+  - What are the incomes of people who own?
+  - Variables to explore: income, year purchased, taxes paid
+  
+####3. Homes and apartments in general. What does turnover look like?
+  - How often/were are homes being sold? 
+  - How often/were are homes sold to foreign buyers?
+  - How often/where are homes put on AirBnB or VRBO as short term rentals?
+  - Whats the historical trend of houses being condo converted?
+
+### Rent & rent control data
+Ok, trying to look into part 1. Rent control was put into place in the late 1970's in response to rents rising rapidly. (CITE) **(would be a good place for a plot here!)**
+```{r}
+plot(cars)
+```
+
+I guess the first thing I really want to know is, who has rent control?
+Is there a list of rent controlled units somewhere?
+Rent controlled buildings are multiunit buildings built before 1977. Is there a list of when buildings were built?
+
+So much property data here!
+http://sfplanninggis.org/pim/maphelp.html#Downloads
+
+Ok, seems like property taxes are a percentage of the "assessed value" for the year, BUT, I think the assessed value can only change by a maximum of 2%/year, and the tax is basically based on the purchase price (Prop 13). Could check this by looking at assessor records over a couple years and see if the prices change. Might also be interesting to compare a few years and look for big jumps! That would indicate houses that, in most other states, would have been paying a lot more over the years. 
+
+Buildings with Mills Act status are historical and also qualify the owner for tax reduction
+http://sf-planning.org/mills-act
+
+Proposition 13 (1978, property tax basically set at buying price, not current value)
+https://sfassessor.org/property-information/homeowners/real-property-assessments
+
+Ok, not sure if there's a list of rent controlled buildings, but there is definitely enough info in the assessor's report to make a very good guess at which properties are rent controlled. 
+
+Now, is there any way to find out what people are making in these houses?
+
+### New interest in property taxes ###
+Goal for first night, look at old records, make sure propert values aren't changing a crazy amount. Predict what the property tax for a given address is given the law, and then check it on the website where you can find your property taxes. 
+
+How are property tax revenues changing over time?
+
