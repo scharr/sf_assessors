@@ -1,291 +1,35 @@
 ---
-title: "SF rent data exploration"
+title: "SF Assessor's Office Data Exploration"
 output: html_notebook
 ---
 
-### Brainstorming questions, data, and methods
-
-Motivating questions I've been thinking about:
-
-####1. Who is rent control benefiting? 
-  - What are the incomes of people who are in rent control?
-  - What are the rents of rent control units?
-  - Are people in rent control using other city programs?
-  - Can I find out if some people who have rent control, own homes elsewhere?
-  - Are rent controlled homes more "derelict?"
-  - Do rent controlled units rent for a premium?
-  - What about people without rent control. Are they more likely to have roomates?
-  - Or be wealthier?
-  - Or move more often?
-  - Does rent control change or correlate with certain behaviors?
-
-####2. Of people who own homes:
-  - How long have they been there?
-  - What taxes are people paying?
-  - What are the incomes of people who own?
-  - Variables to explore: income, year purchased, taxes paid
-  
-####3. Homes and apartments in general. What does turnover look like?
-  - How often/were are homes being sold? 
-  - How often/were are homes sold to foreign buyers?
-  - How often/where are homes put on AirBnB or VRBO as short term rentals?
-  - Whats the historical trend of houses being condo converted?
-
-### Rent & rent control data
-Ok, trying to look into part 1. Rent control was put into place in the late 1970's in response to rents rising rapidly. (CITE) **(would be a good place for a plot here!)**
-
-I guess the first thing I really want to know is, who has rent control?
-Is there a list of rent controlled units somewhere?
-Rent controlled buildings are multiunit buildings built before 1977. Is there a list of when buildings were built?
-
-So much property data here!
-http://sfplanninggis.org/pim/maphelp.html#Downloads
-
-Ok, seems like property taxes are a percentage of the "assessed value" for the year, BUT, I think the assessed value can only change by a maximum of 2%/year, and the tax is basically based on the purchase price (Prop 13). Could check this by looking at assessor records over a couple years and see if the prices change. Might also be interesting to compare a few years and look for big jumps! That would indicate houses that, in most other states, would have been paying a lot more over the years. 
-
-Buildings with Mills Act status are historical and also qualify the owner for tax reduction
-http://sf-planning.org/mills-act
-
-Proposition 13 (1978, property tax basically set at buying price, not current value)
-https://sfassessor.org/property-information/homeowners/real-property-assessments
-
-Ok, not sure if there's a list of rent controlled buildings, but there is definitely enough info in the assessor's report to make a very good guess at which properties are rent controlled. 
-
-Now, is there any way to find out what people are making in these houses?
-
-### New interest in property taxes ###
-Goal for first night, look at old records, make sure propert values aren't changing a crazy amount. Predict what the property tax for a given address is given the law, and then check it on the website where you can find your property taxes. 
-
-How are property tax revenues changing over time?
-
-Property taxes are currently https://sftreasurer.org/property-taxes - 1.163% this year
+###How are property taxes changing over time?
+In this data visualization, we will be looking only at homes with the homeowner's exemption that maintained that exemption from 2007-2016. This means homes that are sold from one primary resident to another. How the data were cleaned and subset is in the "clean_data.rmd" notebook
 
 Loading libraries and the data:
-```{r, cache=TRUE}
+```{r, cache=TRUE, echo=FALSE}
 library(tidyverse)
 library(ggplot2)
-dat = read_csv("Assessor_Historical_Secured_Property_Tax_Rolls.csv")
-
-#https://data.sfgov.org/resource/fk72-cxc3.csv
-
+dat = read_rds("./data/dat_sub.rds")
 ```
 
-Starting to explore the data. First, let's just look at homes with the Homeowner's Exemption. That means the unit is the primary residence of the homeowner. To narrow it down even more, we'll only look at homes that have had the homeowners exemption code the whole time, so any sales were from one primary resident to another, and the property was built in 2007 or before. I will also add a column to calculate what the total taxable assessment was.
-```{r}
-dat_ho = dat %>% 
-  filter(`Exemption Code` == 11) %>%
-  filter(`Use Code` == "SRES" | `Use Code` == "MRES") %>%
-  mutate(`Total Taxable Assessment` = `Assessed Fixtures Value` + `Assessed Improvement Value` + `Assessed Land Value` + `Assessed Personal Property Value` - `Homeowner Exemption Value` - `Misc Exemption Value`)
-
-dat_ho_2007 = dat_ho %>% filter(`Closed Roll Year` == 2007)
-dat_ho_2008 = dat_ho %>% filter(`Closed Roll Year` == 2008)
-dat_ho_2009 = dat_ho %>% filter(`Closed Roll Year` == 2009)
-dat_ho_2010 = dat_ho %>% filter(`Closed Roll Year` == 2010)
-dat_ho_2011 = dat_ho %>% filter(`Closed Roll Year` == 2011)
-dat_ho_2012 = dat_ho %>% filter(`Closed Roll Year` == 2012)
-dat_ho_2013 = dat_ho %>% filter(`Closed Roll Year` == 2013)
-dat_ho_2014 = dat_ho %>% filter(`Closed Roll Year` == 2014)
-dat_ho_2015 = dat_ho %>% filter(`Closed Roll Year` == 2015)
-dat_ho_2016 = dat_ho %>% filter(`Closed Roll Year` == 2016)
-dat_ho_2017 = dat_ho %>% filter(`Closed Roll Year` == 2017)
-
-properties = as.list(unique(dat_ho_2016$`Parcel Number`))
-properties = properties[which(properties %in% dat_ho_2015$`Parcel Number` &
-                                properties %in% dat_ho_2014$`Parcel Number` &
-                                properties %in% dat_ho_2013$`Parcel Number` &
-                                properties %in% dat_ho_2012$`Parcel Number` &
-                                properties %in% dat_ho_2011$`Parcel Number` &
-                                properties %in% dat_ho_2010$`Parcel Number` &
-                                properties %in% dat_ho_2009$`Parcel Number` &
-                                properties %in% dat_ho_2008$`Parcel Number` &
-                                properties %in% dat_ho_2007$`Parcel Number` )]
-
-dat_ho_2007_sub = dat_ho_2007 %>% filter(`Parcel Number` %in% properties)
-dat_ho_2008_sub = dat_ho_2008 %>% filter(`Parcel Number` %in% properties)
-dat_ho_2009_sub = dat_ho_2009 %>% filter(`Parcel Number` %in% properties)
-dat_ho_2010_sub = dat_ho_2010 %>% filter(`Parcel Number` %in% properties)
-dat_ho_2011_sub = dat_ho_2011 %>% filter(`Parcel Number` %in% properties)
-dat_ho_2012_sub = dat_ho_2012 %>% filter(`Parcel Number` %in% properties)
-dat_ho_2013_sub = dat_ho_2013 %>% filter(`Parcel Number` %in% properties)
-dat_ho_2014_sub = dat_ho_2014 %>% filter(`Parcel Number` %in% properties)
-dat_ho_2015_sub = dat_ho_2015 %>% filter(`Parcel Number` %in% properties)
-dat_ho_2016_sub = dat_ho_2016 %>% filter(`Parcel Number` %in% properties)
-
-dat_ho_all_sub = dat_ho %>% 
-  filter(`Parcel Number` %in% properties)
-
-# how to look for duplicates
-# duplicates_test = dat_ho_2009 %>%
-#  group_by(`Parcel Number`) %>%
-#  filter(n()>1)
-```
-
-Now I'll calculate the difference between the total taxable assessment in 2016 and 2012, as well as the percent difference this is. 
-```{r}
-dat_ho_2016_sub = dat_ho_2016_sub %>% arrange(desc(`Parcel Number`))
-dat_ho_2007_sub = dat_ho_2007_sub %>% arrange(desc(`Parcel Number`))
-
-ass_diff = dat_ho_2016_sub$`Total Taxable Assessment` - dat_ho_2012_sub$`Total Taxable Assessment`
-percent_diff = ass_diff / dat_ho_2007_sub$`Total Taxable Assessment` * 100
-
-dat_ho_2016_sub = dat_ho_2016_sub %>%
-  mutate(`Total Taxable Assessment Difference From 2007` = ass_diff) %>%
-  mutate(`Total Taxable Assessment Percent Difference From 2007` = percent_diff)
-```
-
-Now I'll plot the data to explore a bit.
-```{r}
-p = ggplot(data = dat_ho_2016_sub) +
-  geom_histogram(aes(x = `Current Sales Date`),
-                 binwidth = 5)
-p
-
-p = ggplot(data = dat_ho_2016_sub) +
-  geom_histogram(aes(x = `Total Taxable Assessment Difference From 2007`),
-                 binwidth = 1000)+
-  xlim(0, NA)
-p
-
-p = ggplot(data = dat_ho_2016_sub)+
-  geom_histogram(aes(x = `Total Taxable Assessment Percent Difference From 2007`),
-                 binwidth = 1)+
-  xlim(0, NA)
-p
-
-p = ggplot(data = dat_ho_2016_sub) +
-  geom_histogram(aes(x = as.numeric(`Year Property Built`)),
-                 binwidth = 1)
-p
-```
-
-Ok, there are some long tails there, and also some entries that are impossible, particularly for the year the property was built. 
 
 
 ```{r}
-
-p = ggplot(data = dat_ho_2016_sub %>% filter(`Year Property Built` <2050)) +
-  geom_point(aes(x = `Year Property Built`,
-                y = `Current Sales Date`))+
-  scale_y_date()
-p
-
-```
-Ok, so that clearly can't be right. When I explore the data, I see that there are plenty of listings where the current sales date is before when the property was built. Some are listed as condos. Are there condo conversions? And the date is the conversion? I'll try cleaning up the data a little more. 
-
-```{r}
-dat_ho = dat %>% 
-  filter(`Exemption Code` == 11) %>% # homeowner's exemption the whole time
-  filter(`Use Code` == "SRES" | `Use Code` == "MRES") %>%
-  mutate(`Total Taxable Assessment` = `Assessed Fixtures Value` + `Assessed Improvement Value` + `Assessed Land Value` + `Assessed Personal Property Value` - `Homeowner Exemption Value` - `Misc Exemption Value`) %>% # add all the value's up
-  mutate(`Earliest Year` = pmin(as.numeric(format(`Recordation Date`,"%Y")),
-                       as.numeric(format(`Current Sales Date`,"%Y")),
-                       as.numeric(`Year Property Built`), na.rm = TRUE))
-
-dat_ho_2007 = dat_ho %>% filter(`Closed Roll Year` == 2007)
-dat_ho_2008 = dat_ho %>% filter(`Closed Roll Year` == 2008)
-dat_ho_2009 = dat_ho %>% filter(`Closed Roll Year` == 2009)
-dat_ho_2010 = dat_ho %>% filter(`Closed Roll Year` == 2010)
-dat_ho_2011 = dat_ho %>% filter(`Closed Roll Year` == 2011)
-dat_ho_2012 = dat_ho %>% filter(`Closed Roll Year` == 2012)
-dat_ho_2013 = dat_ho %>% filter(`Closed Roll Year` == 2013)
-dat_ho_2014 = dat_ho %>% filter(`Closed Roll Year` == 2014)
-dat_ho_2015 = dat_ho %>% filter(`Closed Roll Year` == 2015)
-dat_ho_2016 = dat_ho %>% filter(`Closed Roll Year` == 2016)
-dat_ho_2017 = dat_ho %>% filter(`Closed Roll Year` == 2017)
-
-properties = as.list(unique(dat_ho_2016$`Parcel Number`))
-properties = properties[which(properties %in% dat_ho_2015$`Parcel Number` &
-                                properties %in% dat_ho_2014$`Parcel Number` &
-                                properties %in% dat_ho_2013$`Parcel Number` &
-                                properties %in% dat_ho_2012$`Parcel Number` &
-                                properties %in% dat_ho_2011$`Parcel Number` &
-                                properties %in% dat_ho_2010$`Parcel Number` &
-                                properties %in% dat_ho_2009$`Parcel Number` &
-                                properties %in% dat_ho_2008$`Parcel Number` &
-                                properties %in% dat_ho_2007$`Parcel Number` )]
-
-dat_ho_2007_sub = dat_ho_2007 %>% filter(`Parcel Number` %in% properties)
-dat_ho_2008_sub = dat_ho_2008 %>% filter(`Parcel Number` %in% properties)
-dat_ho_2009_sub = dat_ho_2009 %>% filter(`Parcel Number` %in% properties)
-dat_ho_2010_sub = dat_ho_2010 %>% filter(`Parcel Number` %in% properties)
-dat_ho_2011_sub = dat_ho_2011 %>% filter(`Parcel Number` %in% properties)
-dat_ho_2012_sub = dat_ho_2012 %>% filter(`Parcel Number` %in% properties)
-dat_ho_2013_sub = dat_ho_2013 %>% filter(`Parcel Number` %in% properties)
-dat_ho_2014_sub = dat_ho_2014 %>% filter(`Parcel Number` %in% properties)
-dat_ho_2015_sub = dat_ho_2015 %>% filter(`Parcel Number` %in% properties)
-dat_ho_2016_sub = dat_ho_2016 %>% filter(`Parcel Number` %in% properties)
-
-dat_ho_all_sub = dat_ho %>% 
-  filter(`Parcel Number` %in% properties)
-
-dat_ho_2016_sub = dat_ho_2016_sub %>% arrange(desc(`Parcel Number`))
-dat_ho_2007_sub = dat_ho_2007_sub %>% arrange(desc(`Parcel Number`))
-
-ass_diff = dat_ho_2016_sub$`Total Taxable Assessment` - dat_ho_2012_sub$`Total Taxable Assessment`
-percent_diff = ass_diff / dat_ho_2012_sub$`Total Taxable Assessment` * 100
-
-dat_ho_2016_sub = dat_ho_2016_sub %>%
-  mutate(`Total Taxable Assessment Difference From 2012` = ass_diff) %>%
-  mutate(`Total Taxable Assessment Percent Difference From 2012` = percent_diff)
-
-# how to look for duplicates
-# duplicates_test = dat_ho_2009 %>%
-#  group_by(`Parcel Number`) %>%
-#  filter(n()>1)
-```
-
-```{r}
-p = ggplot(data = dat_ho_2016_sub) +
+p = ggplot(data = dat %>% filter(`Closed Roll Year` == 2016)) +
   geom_histogram(aes(x = `Total Taxable Assessment`),
-                 binwidth = 1000)+
-  xlim(0,3000000)
+                 binwidth = 1000)#+
+  #scale_x_continuous(trans = "log")
 p
-summary(dat_ho_2016_sub$`Total Taxable Assessment`)
 
-p = ggplot(data = dat_ho_2016_sub) +
-  geom_histogram(aes(x = `Total Taxable Assessment Difference From 2012`),
-                 binwidth = 1000)+
-  xlim(0, 1000000)
-p
-p = ggplot(data = dat_ho_2016_sub) +
-  geom_histogram(aes(x = `Total Taxable Assessment Difference From 2012`),
-                 binwidth = 1000)+
-  xlim(0, 1000000)
-p
-summary(dat_ho_2016_sub$`Total Taxable Assessment Difference From 2012`)
-
-p = ggplot(data = dat_ho_2016_sub)+
-  geom_histogram(aes(x = `Total Taxable Assessment Percent Difference From 2012`),
-                 binwidth = 1)+
-  xlim(0, 500000)
-p
-p = ggplot(data = dat_ho_2016_sub)+
-  geom_histogram(aes(x = `Total Taxable Assessment Percent Difference From 2012`),
-                 binwidth = .1)+
-  xlim(12.5, 17.5)
-p
-summary(dat_ho_2016_sub$`Total Taxable Assessment Percent Difference From 2012`)
-
-p = ggplot(data = dat_ho_2016_sub) +
+p = ggplot(data = dat %>% filter(`Closed Roll Year` == 2016)) +
   geom_histogram(aes(x = as.numeric(`Earliest Year`)),
                  binwidth = 1)
 p
 
-p = ggplot(data = dat_ho_2016_sub) +
+p = ggplot(data = dat %>% filter(`Closed Roll Year` == 2016)) +
   geom_histogram(aes(x = as.numeric(format(`Current Sales Date`,"%Y"))),
                  binwidth = 1)
-p
-
-p = ggplot(data = dat_ho_2016_sub) +
-  geom_point(aes(x = `Earliest Year`,
-                y = `Current Sales Date`))+
-  scale_y_date()
-p
-
-p = ggplot(data = dat_ho_2016_sub) +
-  geom_point(aes(x = `Earliest Year`,
-                y = `Current Sales Date`))+
-  scale_y_date()
 p
 ```
 So now the year the buildings have been most recently sold is AFTER the "earliest year," which will be my proxy for "year built."
@@ -489,3 +233,29 @@ p = ggplot(data = dat_ho_all_sub_slopes %>% filter(`slope` < 400000 & `slope` > 
   scale_y_date()
 p
 ```
+
+
+### More questions to explore
+####1. Who is rent control benefiting? 
+  - What are the incomes of people who are in rent control?
+  - What are the rents of rent control units?
+  - Are people in rent control using other city programs?
+  - Can I find out if some people who have rent control, own homes elsewhere?
+  - Are rent controlled homes more "derelict?"
+  - Do rent controlled units rent for a premium?
+  - What about people without rent control. Are they more likely to have roomates?
+  - Or be wealthier?
+  - Or move more often?
+  - Does rent control change or correlate with certain behaviors?
+
+####2. Of people who own homes:
+  - How long have they been there?
+  - What taxes are people paying?
+  - What are the incomes of people who own?
+  - Variables to explore: income, year purchased, taxes paid
+  
+####3. Homes and apartments in general. What does turnover look like?
+  - How often/were are homes being sold? 
+  - How often/were are homes sold to foreign buyers?
+  - How often/where are homes put on AirBnB or VRBO as short term rentals?
+  - Whats the historical trend of houses being condo converted?

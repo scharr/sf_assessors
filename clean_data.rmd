@@ -6,7 +6,7 @@ output: html_notebook
 The SF Assessor's office data can be downloaded here:
 https://data.sfgov.org/resource/fk72-cxc3.csv
 
-However, it needs some cleaning in order to be used for analysis. Unfortunately, I cannot push this files to github because it is larger than 100 MB, but in my local repository it is in the data subfolder. 
+However, it needs some cleaning in order to be used for analysis. Unfortunately, I cannot push all the files to github because it is larger than 100 MB. If you would like to run this notebook locally, please download the CSV from the link above and place it in the data folder. 
 
 First we'll load the tidyverse library and read in the data. 
 ```{r, cache=TRUE}
@@ -100,11 +100,12 @@ dat_sub = dat_sub %>%
 Lastly, we'll just take the columns we are interested in comparing right now. Some things I'm excluding right now, like number of rooms, is interesting, but much of the data doesn't make sense and would need cleaning. For example there are properties listed with more bedrooms and bathrooms than total rooms, or with zero bathrooms.
 ```{r}
 dat_sub = dat_sub %>%
-  select(`Closed Roll Year`, `Property Location`, `Parcel Number`, `Use Definition`, `Property Class Code Definition`, `Property Area`, `Lot Area`, `Analysis Neighborhood`, `Row ID`, `Total Taxable Assessment`, `Earliest Year`, `Absolute Difference Previous Year`, `Percent Difference Previous Year`, `Slope Total Assessment`, `Slope Percent Difference`, `lat`, `long`)
+  select(`Closed Roll Year`, `Property Location`, `Parcel Number`, `Use Definition`, `Property Class Code Definition`, `Property Area`, `Lot Area`, `Analysis Neighborhood`, `Row ID`, `Total Taxable Assessment`, `Earliest Year`, `Current Sales Date`, `Absolute Difference Previous Year`, `Percent Difference Previous Year`, `Slope Total Assessment`, `Slope Percent Difference`, `lat`, `long`)
 ```
 
-Save the data as \*.csv and as \*.rds files. Unfortunately, I cannot push these files to github because they are larger than 100 MB. I have saved them to my local data subfolder.
+Save the data as \*.csv and as \*.rds files. Unfortunately, I can only push the compressed data to github because of file limit sizes.
 ```{r}
-write_delim(dat_sub, path = "./data/dat_sub.csv", delim = ",")
-write_rds(dat_sub, path = "./data/dat_sub.rds")
+write_delim(dat_sub, path = "./data/assessors_data_subset.csv", delim = ",")
+write_rds(dat_sub, path = "./data/assessors_data_subset.rds")
+write_rds(dat_sub, path = "./data/compressed_assessors_data_subset.rds", compress = "xz")
 ```
