@@ -1,7 +1,14 @@
 ---
 title: "Clean SF Assessor's Office Data"
-output: html_notebook
+output:
+  html_document:
+    df_print: paged
 ---
+
+```{r, echo=FALSE}
+library(knitr)
+opts_chunk$set(tidy.opts=list(width.cutoff=50),tidy=TRUE)
+```
 
 The SF Assessor's office data can be downloaded here:
 https://data.sfgov.org/resource/fk72-cxc3.csv
@@ -9,21 +16,38 @@ https://data.sfgov.org/resource/fk72-cxc3.csv
 However, it needs some cleaning in order to be used for analysis. Unfortunately, I cannot push all the files to github because it is larger than 100 MB. If you would like to run this notebook locally, please download the CSV from the link above and place it in the data folder. 
 
 First we'll load the tidyverse library and read in the data. 
+
 ```{r, cache=TRUE}
 library(tidyverse)
 dat = read_csv("./data/Assessor_Historical_Secured_Property_Tax_Rolls.csv")
 ```
 
-In this analysis, we'll just look at homes with the Homeowner's Exemption. That means the unit is the primary residence of the homeowner. To narrow it down even more, we'll only look at homes that have had the homeowners exemption code for all years, so any sales that occurred were from one primary resident to another. Additionally, with a little exploring, we can see that the column "Year Property Built" has many impossible values, such as dates after the current sales date, or dates far in the future. To estimate the true year the property was built, I will add another column called "Oldest Date," and use the oldest year that appears in the record for that property. I will also add a column to calculate what the total taxable assessment was, minus any exemptions.
+In this analysis, we'll just look at all market rate homes with the Homeowner's Exemption. That means the unit is the primary residence of the homeowner. To narrow it down even more, we'll only look at homes that have had the homeowners exemption code for all years, so any sales that occurred were from one primary resident to another. 
+
+Additionally, with a little exploring, we can see that the column "Year Property Built" has many impossible values, such as dates after the current sales date, or dates far in the future. To estimate the true year the property was built, I will add another column called "Earliest Year," and use the oldest year that appears in the record for that property. 
+
+In addition, the "Current Sales Date" doesn't look very accurate, with many chunks of years missing, so I will add a "Latest Year" column to see if newer recordation dates or anything will be a better estimate of when it was last sold. I also need to remove impossible values (years listed as in the future). 
+
+I will also add a column to calculate what the total taxable assessment was, minus any exemptions.
 
 ```{r}
+latest_year = function(x){
+  if(x <= 2016){y = x}
+  else{y = 2016}
+  return(y)
+  }
+
 dat_sub = dat %>% 
-  filter(`Exemption Code` == 11,
-         `Use Code` == "SRES" | `Use Code` == "MRES") %>%
+  filter(`Exemption Code` == 11, `Use Code` == "SRES" | `Use Code` == "MRES") %>%
+  filter(grepl("*BMR*",`Property Class Code Definition`)==FALSE) %>%
   mutate(`Total Taxable Assessment` = `Assessed Fixtures Value` + `Assessed Improvement Value` + `Assessed Land Value` + `Assessed Personal Property Value` - `Homeowner Exemption Value` - `Misc Exemption Value`) %>%
   mutate(`Earliest Year` = pmin(as.numeric(format(`Recordation Date`,"%Y")),
                        as.numeric(format(`Current Sales Date`,"%Y")),
-                       as.numeric(`Year Property Built`), na.rm = TRUE))
+                       as.numeric(`Year Property Built`), na.rm = TRUE),
+         `Latest Year` = pmax(as.numeric(format(`Recordation Date`,"%Y")),
+                       as.numeric(format(`Current Sales Date`,"%Y")),
+                       as.numeric(`Year Property Built`), na.rm = TRUE)) %>%
+  mutate(`Latest Year` = pmin(as.numeric(`Closed Roll Year`),as.numeric(`Latest Year`), na.rm = TRUE))
 ```
 
 I will also narrow down the data set by only looking at properties that have data entries for all years.
@@ -100,7 +124,7 @@ dat_sub = dat_sub %>%
 Lastly, we'll just take the columns we are interested in comparing right now. Some things I'm excluding right now, like number of rooms, is interesting, but much of the data doesn't make sense and would need cleaning. For example there are properties listed with more bedrooms and bathrooms than total rooms, or with zero bathrooms.
 ```{r}
 dat_sub = dat_sub %>%
-  select(`Closed Roll Year`, `Property Location`, `Parcel Number`, `Use Definition`, `Property Class Code Definition`, `Property Area`, `Lot Area`, `Analysis Neighborhood`, `Row ID`, `Total Taxable Assessment`, `Earliest Year`, `Current Sales Date`, `Absolute Difference Previous Year`, `Percent Difference Previous Year`, `Slope Total Assessment`, `Slope Percent Difference`, `lat`, `long`)
+  select(`Closed Roll Year`, `Property Location`, `Parcel Number`, `Use Definition`, `Property Class Code Definition`, `Property Area`, `Lot Area`, `Analysis Neighborhood`, `Row ID`, `Total Taxable Assessment`, `Earliest Year`, `Latest Year`, `Current Sales Date`, `Absolute Difference Previous Year`, `Percent Difference Previous Year`, `Slope Total Assessment`, `Slope Percent Difference`, `lat`, `long`)
 ```
 
 Save the data as \*.csv and as \*.rds files. Unfortunately, I can only push the compressed data to github because of file limit sizes.

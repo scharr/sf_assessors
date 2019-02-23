@@ -1,241 +1,252 @@
 ---
 title: "SF Assessor's Office Data Exploration"
-output: html_notebook
+output:
+  html_document:
+    df_print: paged
 ---
 
+```{r, echo=FALSE}
+library(knitr)
+opts_chunk$set(tidy.opts = list(width.cutoff=50), tidy = TRUE, warning = FALSE, message = FALSE)
+```
+
 ###How are property taxes changing over time?
-In this data visualization, we will be looking only at homes with the homeowner's exemption that maintained that exemption from 2007-2016. This means homes that are sold from one primary resident to another. How the data were cleaned and subset is in the "clean_data.rmd" notebook
+In this data visualization, we will be looking only at homes with the homeowner's exemption that maintained that exemption from 2007-2016. This means homes that are sold from one primary resident to another. The "clean_data.rmd" notebook contains all the code for cleaning, subsetting, and preparing the data. 
 
 Loading libraries and the data:
-```{r, cache=TRUE, echo=FALSE}
+```{r, cache=TRUE}
 library(tidyverse)
 library(ggplot2)
-dat = read_rds("./data/dat_sub.rds")
+library(scales)
+library(plotly)
+
+dat = read_rds("./data/compressed_assessors_data_subset.rds")
 ```
 
 
+First let's look at the data from the most recent year. The total taxable assessments are plotted below with the x axis with and without log scale, because of the long tail of very high taxable assessments. The assessments range from ~\$7,500 to ~\$14,000,000 with a mean of ~\$480,000 and a mean of ~\$360,000. 
+```{r} 
+currdat = dat %>% filter(`Closed Roll Year` == 2016)
+round(summary(currdat$`Total Taxable Assessment`))
 
-```{r}
-p = ggplot(data = dat %>% filter(`Closed Roll Year` == 2016)) +
+p = ggplot(data = currdat) +
   geom_histogram(aes(x = `Total Taxable Assessment`),
-                 binwidth = 1000)#+
-  #scale_x_continuous(trans = "log")
+                 binwidth = 1000)
 p
 
-p = ggplot(data = dat %>% filter(`Closed Roll Year` == 2016)) +
-  geom_histogram(aes(x = as.numeric(`Earliest Year`)),
-                 binwidth = 1)
-p
-
-p = ggplot(data = dat %>% filter(`Closed Roll Year` == 2016)) +
-  geom_histogram(aes(x = as.numeric(format(`Current Sales Date`,"%Y"))),
-                 binwidth = 1)
+p = ggplot(data = currdat) +
+  geom_histogram(aes(x = `Total Taxable Assessment`),
+                 binwidth = .01)+
+  scale_x_continuous(trans = "log")
 p
 ```
-So now the year the buildings have been most recently sold is AFTER the "earliest year," which will be my proxy for "year built."
 
-Now I'm curious about the neighborhoods!
+Here we can see how these numbers have changed over time.
 ```{r}
-p = ggplot(data = dat_ho_2016_sub)+
+tmp1 = dat %>% 
+  group_by(`Closed Roll Year`) %>%
+  summarise_at(vars(`Total Taxable Assessment`), mean, na.rm = TRUE) %>%
+  mutate(statistic = "Mean")
+
+tmp2 = dat %>% 
+  group_by(`Closed Roll Year`) %>%
+  summarise_at(vars(`Total Taxable Assessment`), median, na.rm = TRUE) %>%
+  mutate(statistic = "Median")
+
+tmp3 = dat %>% 
+  group_by(`Closed Roll Year`) %>%
+  summarise_at(vars(`Total Taxable Assessment`), min, na.rm = TRUE) %>%
+  mutate(statistic = "Min")
+
+tmp4 = dat %>% 
+  group_by(`Closed Roll Year`) %>%
+  summarise_at(vars(`Total Taxable Assessment`), max, na.rm = TRUE) %>%
+  mutate(statistic = "Max")
+
+summary_tta = do.call(rbind,list(tmp1,tmp2,tmp3,tmp4))
+
+p = ggplot(data = summary_tta)+
+  geom_line(aes(x = `Closed Roll Year`,
+                y = `Total Taxable Assessment`,
+                group = `statistic`,
+                color = `statistic`))+
+  ggtitle("Total Taxable Assessments over Time")+
+  scale_y_continuous(trans = "log", breaks = function(x) unique(floor(pretty(seq(0, (max(x) + 1) * 1.1)))))
+p
+
+p = ggplot(data = summary_tta %>% filter(statistic == "Mean"))+
+  geom_line(aes(x = `Closed Roll Year`,
+                y = `Total Taxable Assessment`))+
+  ylim(200000,500000)+
+  ggtitle("Mean Total Taxable Assessment over Time")
+p
+
+p = ggplot(data = summary_tta %>% filter(statistic == "Median"))+
+  geom_line(aes(x = `Closed Roll Year`,
+                y = `Total Taxable Assessment`))+
+  ylim(200000,500000)+
+  ggtitle("Median Total Taxable Assessment over Time")
+p
+
+p = ggplot(data = summary_tta %>% filter(statistic == "Max"))+
+  geom_line(aes(x = `Closed Roll Year`,
+                y = `Total Taxable Assessment`))+
+  ggtitle("Max Total Taxable Assessment over Time")
+p
+
+p = ggplot(data = summary_tta %>% filter(statistic == "Min"))+
+  geom_line(aes(x = `Closed Roll Year`,
+                y = `Total Taxable Assessment`))+
+  ggtitle("Min Total Taxable Assessment over Time")
+p
+```
+
+We can see the trends in these statistics by fitting each with a linear model. The maximum assesssment increases and average of ~\$175,000 each year, the minimum assessment slope is calculated at \$60 each year, but this number is skewed by the ver low minimum in 2014. Exluding this get us an average of ~\$180 per year. The mean assessment and the median assessment increase at ~\$10,000 and ~\$6000 per year. A next step would be to separate the data further into neighborhoods, and perhaps houses that are sold each year, since it is those larger jumps in value that would be useful to predict for home sellers. 
+```{r}
+summary_tta %>%
+  group_by(`statistic`) %>%
+  summarise(`Slope Total Assessment` = lm(`Total Taxable Assessment`~`Closed Roll Year`)$coefficients[[2]])
+
+summary_tta %>%
+  filter(`Closed Roll Year` != 2014, statistic == "Min") %>%
+  summarise(`Slope Total Assessment` = lm(`Total Taxable Assessment`~`Closed Roll Year`)$coefficients[[2]])
+```
+
+
+Below are plotted the earliest and latest years on record, to estimate the dates the property was built and last sold. There definitely seems to be an issue with the dates the properties were last sold, as there are large peaks every 10 years, and apparently a lot of missing data in the early 2000s.
+```{r}
+p = ggplot(data = currdat %>% filter(!is.na(`Earliest Year`))) +
+  geom_histogram(aes(x = as.numeric(`Earliest Year`)),
+                 binwidth = 1)+
+  xlim(1900,2016)
+p
+
+p = ggplot(data = currdat %>% filter(!is.na(`Latest Year`))) +
+  geom_histogram(aes(x = as.numeric(`Latest Year`)),
+                 binwidth = 1)+
+  xlim(1900,2016)
+p
+```
+
+Here we can look at the current total taxable Assessments for different neighborhoods in San Francisco in 2016, as well as the average change in total taxable assessments per year. I have plotted them normally and in log scale for easier comparison of the medians of the neighborhoods. 
+```{r}
+p = ggplot(data = currdat)+
   geom_boxplot(aes(x = `Analysis Neighborhood`,
                y = `Total Taxable Assessment`))+
+  ggtitle("Total Taxable Assessment in 2016")+
   theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))
 p
 
-p = ggplot(data = dat_ho_2016_sub)+
+p = ggplot(data = currdat)+
   geom_boxplot(aes(x = `Analysis Neighborhood`,
-               y = `Total Taxable Assessment Percent Difference From 2012`))+
+               y = `Total Taxable Assessment`))+
+  ggtitle("Total Taxable Assessment in 2016")+
+  scale_y_continuous(trans = "log",  labels = scales::number_format(accuracy = 1))+
   theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))
 p
 
-p = ggplot(data = dat_ho_2016_sub %>% filter(`Current Sales Date` > 2008-01-01 &
-                                               `Total Taxable Assessment Percent Difference From 2012` < 100 &
-                                               `Total Taxable Assessment Percent Difference From 2012` > 0))+
+p = ggplot(data = currdat)+
   geom_boxplot(aes(x = `Analysis Neighborhood`,
-               y = `Total Taxable Assessment Percent Difference From 2012`))+
+               y = `Slope Total Assessment`))+
+  ggtitle("Average Changes in Total Taxable Assessments per Year")+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))
+p
+
+p = ggplot(data = currdat)+
+  geom_boxplot(aes(x = `Analysis Neighborhood`,
+               y = `Slope Total Assessment`))+
+  ggtitle("Average Changes in Total Taxable Assessments per Year")+
+  scale_y_continuous(trans = "log", labels = scales::number_format(accuracy = 1))+
   theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))
 p
 ```
 
+Here we'll look in more detail at how the total assessments have changed in different neighborhoods over the years, for properties that are listed as having sold since 2006 and those that are not listed as having sold. 
 ```{r}
-neighborhoods = unique(dat_ho_all_sub$`Analysis Neighborhood`)
-currdat = dat_ho_all_sub %>% filter(as.numeric(format(`Current Sales Date`,"%Y")) >= 2006)
+neighborhoods_count = currdat %>% group_by(`Analysis Neighborhood`) %>% summarise(count = n())
+neighborhoods = neighborhoods_count %>% filter(count >= 1000) %>% select(`Analysis Neighborhood`)
+neighborhoods = unique(neighborhoods$`Analysis Neighborhood`)
 
 pAssessTime = function(nhood){
-  currdat2 = currdat %>% filter(`Analysis Neighborhood` == nhood & as.numeric(format(`Current Sales Date`,"%Y")) >= 2006)
+  #print(nhood)
+  currdat2 = dat %>% filter(`Analysis Neighborhood` == nhood)
   p = ggplot(data = currdat2) +
     geom_line(aes(x = `Closed Roll Year`,
                   y = `Total Taxable Assessment`,
                   group = `Parcel Number`,
                   color = `Earliest Year`))+
-    #geom_point(aes(x = as.numeric(format(`Current Sales Date`,"%Y")),
-    #              y = `Total Taxable Assessment`,
-    #              group = `Parcel Number`))+
     scale_color_distiller(palette = "Spectral")+
     ggtitle(paste(nhood))+
-    theme_dark()#+ 
+    theme_dark()+ 
+    facet_wrap(~as.factor(`Latest Year` >= 2006)) 
     #facet_wrap(~as.factor(as.numeric(format(`Current Sales Date`,"%Y")) >= 2006))
   return(p)
 }
 
 lapply(neighborhoods, pAssessTime)
 ```
-So this shows some interesting patterns. For homes that were not sold, there is often a dip in property values starting after 2008 and reaching a minimum around 2012. This is because homeowners can have their homes reassessed if the house loses value, and there was the 2008 financial crisis. (CITE) If the housing market recovers, the house is reassessed but only to what would be maximally allowed based on the original property assessment. In houses that were sold during this time period, there are often large jumps in the assessment value. This is what I expected. The number of houses that maintained a steady property growth rate surprised me. Maybe the depressed property values after 2008 contributed to these properties not gaining greatly in value. Maybe the new owners benefitted from transfering their old property assessment (CITE). Maybe the property was sold to a child or grandchild, who would be allowed to keep the lower assessment (CITE). 
+<br>
+So this shows some interesting patterns. We again see the issue of missing sales dates before 2010. We also see that for homes that were not sold after 2006, there is often a dip in property values starting after 2008 and reaching a minimum around 2011/2012. This is because homeowners can have their homes reassessed if the house loses value, and there was the 2008 financial crisis. If the housing market recovers, the house is reassessed but only to what would be maximally allowed based on the original property assessment. In houses that were sold after 2006, there are often large jumps in the assessment value, even through the financial crisis. The number of houses that maintained a steady property growth rate surprised me. Maybe the depressed property values after 2008 contributed to these properties not gaining greatly in value. Or perhaps the new owners benefitted from transfering their old property assessment, which is allowed by California law in many cases. Maybe the property was sold to a child or grandchild, who would be allowed to keep the lower assessment. It's also possible that the sold date is incorrect. 
 
-(WORD THIS BETTER) I'm going to fit each property with a linear regression to see what the average increase in value per year is between 2008 and 2016. Then I can see what neighborhoods or perhaps characteristics of houses correlate with increasing or stable taxable assessments. 
+The next step here is to identify the actually sold homes by a maximum increase in percent of the total taxable assessment, while excluding those homes that just regained lost value during the financial crisis. This could be done by comparing the 2006 and 2016 assessments and saying those that increased by only the amount allowed by law (~1-2% per year), would not count as sold, even if there was a large increase in value after the recovery from the financial crisis. 
 
+### Mapping Assessor's Office Data
+Let's look at homes that increased in value more than they would by the typical amount allowed by law if the property was not sold (~2%). However, we're still not excluding homes that decreased and then increased values during and after the financial crisis. 
+
+This plot shows that there will be very few properties overall that increase more than 2% per year.
 ```{r}
-slopes = dat_ho_all_sub %>% 
-  group_by(`Parcel Number`) %>%
-  summarise(slope = lm(`Total Taxable Assessment`~`Closed Roll Year`)$coefficients[[2]])
-
-dat_ho_all_sub_slopes = slopes %>%
-  left_join(dat_ho_all_sub, by = "Parcel Number")
-
-```
-
-```{r}
-ggplot(data = slopes %>% filter(`slope` < 400000 & `slope` > -100000))+
-  geom_histogram(aes(x = `slope`),
-                 binwidth = 1000)+
-  scale_y_log10()
-ggplot(data = slopes %>% filter(`slope` < 400000 & `slope` > -100000))+
-  geom_histogram(aes(x = `slope`),
-                 binwidth = 1000)
-```
-
-
-```{r}
-neighborhoods = unique(dat_ho_all_sub_slopes$`Analysis Neighborhood`)
-
-pAssessTime = function(nhood){
-  currdat = dat_ho_all_sub_slopes %>% filter(`Analysis Neighborhood` == nhood)
-  p = ggplot(data = currdat) +
-    geom_jitter(aes(x = 1,
-                  y = `slope`,
-                  group = `Parcel Number`,
-                  color = `Earliest Year`))+
-    scale_color_distiller(palette = "Spectral")+
-    ggtitle(paste(nhood))+
-    theme_dark()+ 
-    facet_wrap(~as.factor(`Current Sales Date` >= 2006))
-  return(p)
-}
-
-lapply(neighborhoods, pAssessTime)
-```
-
-```{r}
-options(digits = 15)
-get_lat = function(geo){
-  lat = strsplit(geo, "[(,)]")[[1]][2]
-  lat = as.double(lat, length = 15)
-  return(lat)
-}
-get_long = function(geo){
-  long = strsplit(geo, "[(,)]")[[1]][3]
-  long = as.double(long, length = 15)
-  return(long)
-}
-#lats = lapply(dat_ho_all_sub_slopes$the_geom, get_lat)
-#longs = lapply(dat_ho_all_sub_slopes$the_geom, get_long)
-dat_ho_all_sub_slopes = dat_ho_all_sub_slopes %>% 
-  rowwise() %>%
-  mutate(lat = get_lat(the_geom),
-         long = get_long(the_geom))
-```
-
-```{r}
-
-sfmap = map_data("county", region = "California") %>% filter(subregion == "san francisco")
-p = ggplot()+
-  geom_polygon(data = sfmap, 
-               aes(x=long, y = lat))
+p = ggplot(data = currdat %>% filter(`Percent Difference Previous Year` < .03, 
+                                     `Percent Difference Previous Year` > .01)) +
+  geom_histogram(aes(x = `Percent Difference Previous Year`),
+                 binwidth = .0001)+
+  scale_x_continuous(labels = scales::number_format(accuracy = 0.001))
 p
+```
 
-currdat = dat_sub %>% filter(`Closed Roll Year` == 2016,
-                                           `Slope Percent Difference` >= 0)
-p = ggplot()+
-  geom_point(data = currdat,
-             aes(x = long,
-                 y = lat,
-                 color = `Slope Percent Difference`))+
-  #scale_color_gradientn(trans = "log", colors = rainbow(9))+
-  scale_color_distiller(palette = "Spectral", trans = "log")+
-  coord_map()
-p
+Here are maps of the locations of the properties that increased their taxable assessment by more than 2% from the previous year. If viewing in html, you can hover over each dot to get the address of the property. A next step will be to plot these over a proper map of San Francisco. 
+```{r}
+currdat = dat %>% filter(`Percent Difference Previous Year` > 0.02)
+years = sort(unique(currdat$`Closed Roll Year`))
+
+pAssessPercent = function(year){
+  #print(year)
+  currdat2 = currdat %>% filter(`Closed Roll Year` == year)
+  p = ggplot()+
+    geom_point(data = currdat2,
+               aes(x = long,
+                   y = lat,
+                   color = `Percent Difference Previous Year`*100,
+                   group = `Property Location`))+
+    #scale_color_gradientn(trans = "log", colors = rainbow(9))+
+    scale_color_distiller(name = "%", limits = c(min(currdat$`Percent Difference Previous Year`), max(currdat$`Percent Difference Previous Year`)), palette = "Spectral", trans = "log", labels = scales::number_format(accuracy = 1))+
+    ggtitle(paste("Percent Difference in Assessment from", year-1, "to", year))+
+    coord_map()
+  return(ggplotly(p))
+}
+
+lapply(years, pAssessPercent)
+```
+
+### Mapping Potential Rent Control
+These are all owner occupied properties, as they have the homeowner's deduction. If the owner rented them out, how many would be covered by rent control? These would be buildings built before 1977.
+
+```{r}
+currdat = dat %>% filter(`Closed Roll Year` == 2016)
 
 p = ggplot()+
   geom_point(data = currdat,
              aes(x = long,
                  y = lat,
-                 color = `Slope Percent Difference`))+
-  scale_color_gradientn(trans = "log", colors = rev(rainbow(9)))+
+                 color = as.factor(`Earliest Year`<= 1977),
+                 group = `Property Location`))+
+  scale_color_discrete()+
+  ggtitle("Rent Control Qualified")+
   coord_map()
 p
 
 ```
 
-```{r}
-neighborhoods = unique(dat_ho_all_sub_slopes$`Analysis Neighborhood`)
-pLocation = function(nhood){
-  currdat = dat_ho_all_sub_slopes %>% filter(`Analysis Neighborhood` == nhood)
-  p = ggplot(data = currdat) +
-    geom_jitter(aes(x = 1,
-                  y = `slope`,
-                  group = `Parcel Number`,
-                  color = `Earliest Year`))+
-    scale_color_distiller(palette = "Spectral")+
-    ggtitle(paste(nhood))+
-    theme_dark()+ 
-    facet_wrap(~as.factor(`Current Sales Date` >= 2006))
-  return(p)
-}
-
-lapply(neighborhoods, pAssessTime)
-```
-
-
-```{r}
-dat_ho_2016_sub2  = dat_ho_2016_sub %>% filter(`Total Taxable Assessment Percent Difference From 2012` > 1000 & `Total Taxable Assessment` <3000000)
-
-p = ggplot(data = dat_ho_all_sub %>% filter(`Parcel Number` %in% dat_ho_2016_sub2$`Parcel Number`)) +
-  geom_line(aes(x = `Closed Roll Year`,
-                y = `Total Taxable Assessment`,
-                group = `Parcel Number`,
-                color = `Year Property Built`))+
-  scale_color_distiller(palette = "Spectral")+
-  theme_dark()
-  #theme(legend.position = "none")
-p
-
-pAssessEarliestDate = function(nhood){
-  currdat = dat_ho_all_sub %>% filter(`Analysis Neighborhood` == nhood)
-  p = ggplot(data = currdat %>% filter(`Parcel Number` %in% dat_ho_2016_sub2$`Parcel Number`)) +
-  geom_point(aes(x = `Current Sales Date`,
-                y = `Total Taxable Assessment`,
-                group = `Parcel Number`,
-                color = `Earliest Year`))+
-  scale_x_date()+
-  scale_color_distiller(palette = "Spectral")+
-  theme_dark()+
-  #theme(legend.position = "none")
-  return(p)
-}
-lapply(neighborhoods[1:3], pAssessEarliestDate)
-
-
-p = ggplot(data = dat_ho_all_sub_slopes %>% filter(`slope` < 400000 & `slope` > 0)) +
-  geom_point(aes(x = `Earliest Year`,
-                y = `Current Sales Date`,
-                color = `slope`))+
-  scale_color_distiller(palette = "Spectral")+
-  scale_y_date()
-p
-```
-
-
-### More questions to explore
+### Many more questions to explore!
 ####1. Who is rent control benefiting? 
   - What are the incomes of people who are in rent control?
   - What are the rents of rent control units?
@@ -259,3 +270,5 @@ p
   - How often/were are homes sold to foreign buyers?
   - How often/where are homes put on AirBnB or VRBO as short term rentals?
   - Whats the historical trend of houses being condo converted?
+  
+  
