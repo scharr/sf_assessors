@@ -18,7 +18,7 @@ Loading libraries and the data:
 library(tidyverse)
 library(ggplot2)
 library(scales)
-library(plotly)
+#library(plotly)
 
 dat = read_rds("./data/compressed_assessors_data_subset.rds")
 ```
@@ -203,9 +203,9 @@ p = ggplot(data = currdat %>% filter(`Percent Difference Previous Year` < .03,
 p
 ```
 
-Here are maps of the locations of the properties that increased their taxable assessment by more than 2% from the previous year. If viewing in html, you can hover over each dot to get the address of the property. A next step will be to plot these over a proper map of San Francisco. 
+Here are maps of the locations of the properties that increased their taxable assessment by more than 2.25% from the previous year. A next step will be to plot these over a proper map of San Francisco. 
 ```{r}
-currdat = dat %>% filter(`Percent Difference Previous Year` > 0.02)
+currdat = dat %>% filter(`Percent Difference Previous Year` > 0.0225)
 years = sort(unique(currdat$`Closed Roll Year`))
 
 pAssessPercent = function(year){
@@ -218,10 +218,10 @@ pAssessPercent = function(year){
                    color = `Percent Difference Previous Year`*100,
                    group = `Property Location`))+
     #scale_color_gradientn(trans = "log", colors = rainbow(9))+
-    scale_color_distiller(name = "%", limits = c(min(currdat$`Percent Difference Previous Year`), max(currdat$`Percent Difference Previous Year`)), palette = "Spectral", trans = "log", labels = scales::number_format(accuracy = 1))+
+    scale_color_distiller(name = "%", limits = c(2.25, max(currdat$`Percent Difference Previous Year`)*100), palette = "Spectral", trans = "log", labels = scales::number_format(accuracy = 1))+
     ggtitle(paste("Percent Difference in Assessment from", year-1, "to", year))+
     coord_map()
-  return(ggplotly(p))
+  return(p)
 }
 
 lapply(years, pAssessPercent)
